@@ -40,27 +40,3 @@ mod magic;
 mod option_reply;
 mod option_request;
 pub mod server;
-
-/// Initializes a default tracing subscriber suitable for use with tokio-nbd.
-///
-/// This sets up basic console logging with RUST_LOG environment variable support.
-/// If you want more advanced tracing configuration, you should set up your own
-/// subscriber instead.
-///
-/// # Example
-///
-/// ```rust,no_run
-/// // Initialize the default tracing subscriber at the beginning of your program
-/// tokio_nbd::init_default_tracing();
-///
-/// // Now logs from tokio-nbd will be visible
-/// ```
-pub fn init_default_tracing() {
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("tokio_nbd=info"));
-
-    tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .with_target(true)
-        .init();
-}
