@@ -41,7 +41,7 @@
 //! #[tokio::main]
 //! async fn main() -> std::io::Result<()> {
 //!     // Need signal handling for graceful shutdown in production code
-//!     
+//!
 //!     // Create a driver with 1MB of storage
 //!     let device = MemoryDriver {
 //!         data: RwLock::new(vec![0; 1024 * 1024]),
@@ -76,8 +76,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use std::{io, vec};
-use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
+use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
@@ -145,13 +145,13 @@ use crate::option_request::OptionRequest;
 ///         // Support basic read/write operations but not advanced features
 ///         ServerFeatures::SEND_FLUSH | ServerFeatures::SEND_FUA
 ///     }
-///     
+///
 ///     // Basic device info methods implementation
 ///     async fn list_devices(&self) -> Result<Vec<String>, OptionReplyError> {
 ///         // Only one device available
 ///         Ok(vec!["memory".to_string()])
 ///     }
-///     
+///
 ///     async fn get_read_only(&self, device_name: &str) -> Result<bool, OptionReplyError> {
 ///         if device_name == "memory" {
 ///             Ok(false) // Device is writable
@@ -159,7 +159,7 @@ use crate::option_request::OptionRequest;
 ///             Err(OptionReplyError::Unknown)
 ///         }
 ///     }
-///     
+///
 ///     // Example of a core data operation
 ///     async fn read(
 ///         &self,
@@ -170,14 +170,14 @@ use crate::option_request::OptionRequest;
 ///         let data = self.data.read().unwrap();
 ///         let start = offset as usize;
 ///         let end = start + length as usize;
-///         
+///
 ///         if end > data.len() {
 ///             return Err(ProtocolError::InvalidArgument);
 ///         }
-///         
+///
 ///         Ok(data[start..end].to_vec())
 ///     }
-///     
+///
 ///     // Example of an unsupported operation
 ///     async fn cache(
 ///         &self,
@@ -188,7 +188,7 @@ use crate::option_request::OptionRequest;
 ///         // Memory-backed driver doesn't need explicit caching
 ///         Err(ProtocolError::CommandNotSupported)
 ///     }
-///     
+///
 ///     // Other methods implementation...
 /// }
 /// ```
@@ -498,7 +498,7 @@ where
     /// 2. Handle option negotiation to select a device
     /// 3. Process commands for the selected device
     #[instrument(name = "nbd_server_session", skip(self, stream))]
-    pub async fn start(&self, stream: TcpStream) -> std::io::Result<()> {
+    pub async fn start<S: AsyncRead + AsyncWrite>(&self, stream: S) -> std::io::Result<()> {
         if self.devices.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -506,7 +506,7 @@ where
             ));
         }
 
-        let (reader, writer) = stream.into_split();
+        let (reader, writer) = tokio::io::split(stream);
         let mut reader = BufReader::new(reader);
         let mut writer = BufWriter::new(writer);
 
@@ -552,7 +552,7 @@ where
     #[instrument(name = "nbd_handshake", skip(self, reader, writer))]
     async fn handle_handshake<R, W>(&self, reader: &mut R, writer: &mut W) -> std::io::Result<()>
     where
-        R: AsyncReadExt + Unpin,
+        R: AsyncRead + Unpin,
         W: AsyncWrite + Unpin,
     {
         // Write the initial handshake
@@ -775,7 +775,7 @@ where
         writer: &mut W,
     ) -> std::io::Result<SelectedDevice<T>>
     where
-        R: AsyncReadExt + Unpin,
+        R: AsyncRead + Unpin,
         W: AsyncWrite + Unpin,
     {
         // Create a new receiver for this method
@@ -943,8 +943,8 @@ where
         device_size: u64,
     ) -> io::Result<()>
     where
-        R: AsyncReadExt + Unpin,
-        W: tokio::io::AsyncWrite + Unpin,
+        R: AsyncRead + Unpin,
+        W: AsyncWrite + Unpin,
     {
         // Create a new receiver for this method
         let mut shutdown_rx = self.shutdown_rx.resubscribe();
